@@ -1,0 +1,1581 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EulerGames · Tanque de Equilibrio</title>
+  <style>
+    :root {
+      --bg: #1f252b;
+      --panel: rgba(242, 246, 248, 0.95);
+      --panel-strong: #ffffff;
+      --ink: #19303d;
+      --muted: #566a76;
+      --accent: #17789a;
+      --accent-2: #27a6c7;
+      --good: #1a8f5d;
+      --warn: #b97912;
+      --bad: #b33d3d;
+      --line: rgba(25, 48, 61, 0.14);
+      --shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 18% 10%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0) 26%),
+        linear-gradient(180deg, #3b454d 0%, #2b333a 35%, #1f252b 100%);
+      position: relative;
+      transition: box-shadow 0.35s ease, background 0.35s ease;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.35s ease;
+      background: radial-gradient(circle at 50% 36%, rgba(255,255,255,0.08), rgba(255,255,255,0) 48%);
+    }
+
+    body.state-win::before {
+      opacity: 1;
+      background:
+        radial-gradient(circle at 50% 36%, rgba(76, 255, 160, 0.26), rgba(76, 255, 160, 0.06) 34%, rgba(76,255,160,0) 58%),
+        linear-gradient(180deg, rgba(56, 171, 108, 0.14), rgba(56,171,108,0.03));
+    }
+
+    body.state-fail::before {
+      opacity: 1;
+      background:
+        radial-gradient(circle at 50% 36%, rgba(255, 84, 84, 0.26), rgba(255, 84, 84, 0.06) 34%, rgba(255,84,84,0) 58%),
+        linear-gradient(180deg, rgba(190, 68, 68, 0.14), rgba(190,68,68,0.03));
+    }
+
+    body.state-win .panel,
+    body.state-win .control-readout,
+    body.state-win .hud-item,
+    body.state-win .data-card {
+      box-shadow: 0 0 0 1px rgba(74, 209, 129, 0.16), 0 0 28px rgba(74, 209, 129, 0.18), var(--shadow);
+    }
+
+    body.state-fail .panel,
+    body.state-fail .control-readout,
+    body.state-fail .hud-item,
+    body.state-fail .data-card {
+      box-shadow: 0 0 0 1px rgba(220, 84, 84, 0.16), 0 0 28px rgba(220, 84, 84, 0.16), var(--shadow);
+    }
+
+    header {
+      padding: 12px 20px 8px;
+      text-align: center;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.65rem, 2.7vw, 2.35rem);
+      letter-spacing: -0.04em;
+      color: #eef6fa;
+    }
+
+    .subtitle {
+      margin: 6px auto 0;
+      max-width: 900px;
+      color: #cad7df;
+      font-size: 0.98rem;
+    }
+
+    .layout {
+      width: min(1440px, calc(100vw - 28px));
+      margin: 8px auto 16px;
+      display: grid;
+      grid-template-columns: 285px minmax(600px, 1fr) 315px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      overflow: hidden;
+    }
+
+    .panel-inner { padding: 18px; }
+
+    .section-title {
+      margin: 0 0 12px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.13em;
+      color: #477088;
+      font-weight: 800;
+    }
+
+    .control-readout {
+      background: linear-gradient(180deg, #ffffff 0%, #edf3f6 100%);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+
+    .percent {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 4px;
+      font-weight: 900;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .percent .number { font-size: 3.1rem; letter-spacing: -0.06em; }
+    .percent .symbol { font-size: 1.25rem; }
+
+    .small-note {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.84rem;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+
+
+    .knob-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 8px 0 12px;
+    }
+
+    .knob-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      user-select: none;
+    }
+
+    .knob {
+      --angle: 0deg;
+      width: 130px;
+      height: 130px;
+      border-radius: 50%;
+      position: relative;
+      cursor: grab;
+      touch-action: none;
+      background:
+        radial-gradient(circle at 35% 30%, #5f707c 0%, #47555f 25%, #313c44 58%, #222b31 100%);
+      border: 5px solid #8fa0aa;
+      box-shadow:
+        inset 0 10px 18px rgba(255,255,255,0.16),
+        inset 0 -12px 18px rgba(0,0,0,0.30),
+        0 12px 24px rgba(0,0,0,0.22);
+    }
+
+    .knob:hover { filter: brightness(1.03); }
+    .knob.dragging { cursor: grabbing; }
+    .knob.locked { opacity: 0.55; cursor: not-allowed; }
+
+    .knob-ring {
+      position: absolute;
+      inset: 8px;
+      border-radius: 50%;
+      border: 1px dashed rgba(255,255,255,0.24);
+      pointer-events: none;
+    }
+
+    .knob-indicator {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 7px;
+      height: 46px;
+      margin-left: -3.5px;
+      margin-top: -47px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #eaf7ff 0%, #88e1ff 30%, #1eb0d2 100%);
+      box-shadow: 0 0 10px rgba(96, 226, 255, 0.45);
+      transform-origin: 50% 41px;
+      transform: rotate(var(--angle));
+      pointer-events: none;
+    }
+
+    .knob-cap {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 40px;
+      height: 40px;
+      margin-left: -20px;
+      margin-top: -20px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #dce6eb 0%, #9caeb8 45%, #697781 100%);
+      border: 2px solid rgba(255,255,255,0.55);
+      box-shadow: inset 0 4px 8px rgba(255,255,255,0.22), inset 0 -6px 10px rgba(0,0,0,0.18);
+      pointer-events: none;
+    }
+
+    .knob-scale {
+      width: 154px;
+      display: flex;
+      justify-content: space-between;
+      color: #60717b;
+      font-size: 0.75rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      margin-top: -2px;
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 13px;
+      padding: 11px 10px;
+      font-weight: 800;
+      color: #123149;
+      background: #ffffff;
+      border: 1px solid rgba(24, 83, 116, 0.14);
+      box-shadow: 0 8px 18px rgba(20, 80, 120, 0.08);
+      cursor: pointer;
+      transition: transform 0.08s ease, background 0.2s ease, opacity 0.2s ease;
+    }
+
+    button:hover:not(:disabled) { transform: translateY(-1px); background: #f7fcff; }
+    button:active:not(:disabled) { transform: translateY(1px); }
+    button:disabled { opacity: 0.42; cursor: not-allowed; }
+
+    .primary {
+      width: 100%;
+      padding: 13px;
+      color: #ffffff;
+      background: linear-gradient(135deg, #1376a8, #18a7cd);
+      border: 0;
+      box-shadow: 0 12px 24px rgba(19, 118, 168, 0.22);
+      margin-bottom: 9px;
+    }
+
+    .secondary {
+      width: 100%;
+      color: #125070;
+      background: #eaf8ff;
+    }
+
+    .ghost {
+      width: 100%;
+      background: transparent;
+      box-shadow: none;
+      color: var(--muted);
+    }
+
+    .status-box {
+      margin-top: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 13px;
+      font-size: 0.91rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .status-box strong { color: var(--ink); }
+
+    .canvas-card {
+      position: relative;
+      height: 560px;
+      min-height: 560px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0)),
+        #2a3339;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 560px;
+      min-height: 560px;
+      border-radius: 22px;
+    }
+
+    .hud {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 9px;
+      pointer-events: none;
+    }
+
+    .hud-item {
+      background: rgba(255, 255, 255, 0.82);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 15px;
+      padding: 9px 11px;
+      box-shadow: 0 10px 20px rgba(0, 0, 0, 0.16);
+    }
+
+    .hud-label {
+      display: block;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #668092;
+      font-weight: 800;
+    }
+
+    .hud-value {
+      display: block;
+      margin-top: 2px;
+      color: #123149;
+      font-size: 1rem;
+      font-weight: 850;
+    }
+
+    .data-card {
+      background: #ffffff;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      padding: 12px 13px;
+      margin-bottom: 10px;
+    }
+
+    .data-card h3 {
+      margin: 0 0 9px;
+      font-size: 0.95rem;
+      color: #123149;
+    }
+
+    .row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      border-top: 1px dashed rgba(23, 50, 71, 0.12);
+      padding: 7px 0;
+      font-size: 0.92rem;
+    }
+
+    .row:first-of-type { border-top: 0; }
+    .row span:first-child { color: var(--muted); }
+    .row span:last-child { font-weight: 800; text-align: right; }
+
+    .feedback {
+      margin-top: 12px;
+      padding: 13px;
+      border-radius: 17px;
+      border: 1px solid rgba(23, 50, 71, 0.12);
+      background: #ffffff;
+      display: none;
+    }
+
+    .feedback.show { display: block; }
+    .feedback.win { border-color: rgba(23, 138, 88, 0.35); background: #f0fff8; }
+    .feedback.near { border-color: rgba(196, 122, 0, 0.35); background: #fff9ed; }
+    .feedback.fail { border-color: rgba(183, 53, 53, 0.35); background: #fff3f3; }
+
+    .result-title {
+      margin: 0 0 8px;
+      font-size: 1.05rem;
+      font-weight: 900;
+    }
+
+    .feedback p {
+      margin: 8px 0 0;
+      font-size: 0.92rem;
+      color: #496779;
+      line-height: 1.45;
+    }
+
+    kbd {
+      display: inline-block;
+      min-width: 1.7em;
+      text-align: center;
+      padding: 2px 6px;
+      border-radius: 7px;
+      background: #ffffff;
+      border: 1px solid rgba(23,50,71,0.18);
+      box-shadow: inset 0 -2px 0 rgba(23,50,71,0.08);
+      font-size: 0.82rem;
+      color: #123149;
+      font-weight: 800;
+    }
+
+    @media (max-width: 1180px) {
+      .layout { grid-template-columns: 1fr; }
+      .canvas-card, canvas { height: 500px; min-height: 500px; }
+      .hud { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tanque de Equilibrio</h1>
+    <p class="subtitle">Calcula el porcentaje del caudal máximo para que el nivel del agua se estabilice en la altura solicitada.</p>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <div class="panel-inner">
+        <p class="section-title">Control de válvula</p>
+
+        <div class="control-readout">
+          <div class="knob-wrap">
+            <div class="knob-panel">
+              <div class="knob" id="flowKnob" tabindex="0" role="slider" aria-label="Perilla de caudal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                <div class="knob-ring"></div>
+                <div class="knob-indicator" id="knobIndicator"></div>
+                <div class="knob-cap"></div>
+              </div>
+              <div class="knob-scale"><span>0%</span><span>100%</span></div>
+            </div>
+          </div>
+          <div class="percent">
+            <span class="number" id="pctText">50.0</span><span class="symbol">%</span>
+          </div>
+          <div class="small-note" id="controlNote">Gira la perilla o usa el teclado antes de abrir la válvula.</div>
+        </div>
+
+        <div class="button-grid">
+          <button id="minusCoarse">− 1%</button>
+          <button id="plusCoarse">+ 1%</button>
+          <button id="minusFine">− 0.1%</button>
+          <button id="plusFine">+ 0.1%</button>
+        </div>
+
+        <button class="primary" id="openBtn">Abrir caudal</button>
+        <button class="secondary" id="continueBtn" style="display:none;">Continuar</button>
+        <button class="ghost" id="soundBtn">Sonido: activado</button>
+
+        <div class="status-box" id="statusText">
+          <strong>Ronda lista.</strong><br>
+          Usa <kbd>←</kbd> <kbd>→</kbd> para ajuste de 1% y <kbd>↓</kbd> <kbd>↑</kbd> para ajuste fino de 0.1%. Una vez abierta, la válvula queda bloqueada.
+        </div>
+      </div>
+    </aside>
+
+    <section class="panel canvas-card">
+      <canvas id="gameCanvas" width="920" height="560"></canvas>
+      <div class="hud">
+        <div class="hud-item">
+          <span class="hud-label">Tiempo físico</span>
+          <span class="hud-value" id="timeHud">0.0 s</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Nivel actual</span>
+          <span class="hud-value" id="heightHud">0.00 m</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Caudal de entrada</span>
+          <span class="hud-value" id="qinHud">—</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Caudal de salida</span>
+          <span class="hud-value" id="qoutHud">—</span>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel">
+      <div class="panel-inner">
+        <p class="section-title">Datos físicos</p>
+
+        <div class="data-card">
+          <h3>Tanque cilíndrico</h3>
+          <div class="row"><span>Altura</span><span id="tankHeightText">—</span></div>
+          <div class="row"><span>Diámetro</span><span id="tankDiameterText">—</span></div>
+        </div>
+
+        <div class="data-card">
+          <h3>Orificio lateral</h3>
+          <div class="row"><span>Altura del centro</span><span id="holeHeightText">—</span></div>
+          <div class="row"><span>Diámetro</span><span id="holeDiameterText">—</span></div>
+          <div class="row"><span>Coef. descarga</span><span id="cdText">—</span></div>
+        </div>
+
+        <div class="data-card">
+          <h3>Sistema de llenado</h3>
+          <div class="row"><span>Caudal máximo</span><span id="qmaxText">—</span></div>
+          <div class="row"><span>Estado inicial</span><span>Tanque vacío</span></div>
+        </div>
+
+        <div class="data-card">
+          <h3>Objetivo</h3>
+          <div class="row"><span>Altura solicitada</span><span id="targetText">—</span></div>
+          <div class="row"><span>Tolerancia</span><span id="toleranceText">—</span></div>
+        </div>
+
+        <div class="feedback" id="feedbackBox">
+          <div class="result-title" id="resultTitle">Resultado</div>
+          <div class="row"><span>Altura objetivo</span><span id="fbTarget">—</span></div>
+          <div class="row"><span>Altura de equilibrio</span><span id="fbEquilibrium">—</span></div>
+          <div class="row"><span>Error</span><span id="fbError">—</span></div>
+          <div class="row"><span>Caudal elegido</span><span id="fbQin">—</span></div>
+          <div class="row"><span>Salida final</span><span id="fbQout">—</span></div>
+          <p id="fbMessage">—</p>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    // ============================================================
+    // EulerGames · Tanque de Equilibrio
+    // Un solo archivo. Sin librerías externas.
+    // ============================================================
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const G = 9.81;
+    const LPS = 1000; // m³/s a L/s
+
+    const els = {
+      pctText: document.getElementById('pctText'),
+      flowKnob: document.getElementById('flowKnob'),
+      knobIndicator: document.getElementById('knobIndicator'),
+      controlNote: document.getElementById('controlNote'),
+      minusCoarse: document.getElementById('minusCoarse'),
+      plusCoarse: document.getElementById('plusCoarse'),
+      minusFine: document.getElementById('minusFine'),
+      plusFine: document.getElementById('plusFine'),
+      openBtn: document.getElementById('openBtn'),
+      continueBtn: document.getElementById('continueBtn'),
+      soundBtn: document.getElementById('soundBtn'),
+      statusText: document.getElementById('statusText'),
+      timeHud: document.getElementById('timeHud'),
+      heightHud: document.getElementById('heightHud'),
+      qinHud: document.getElementById('qinHud'),
+      qoutHud: document.getElementById('qoutHud'),
+      tankHeightText: document.getElementById('tankHeightText'),
+      tankDiameterText: document.getElementById('tankDiameterText'),
+      holeHeightText: document.getElementById('holeHeightText'),
+      holeDiameterText: document.getElementById('holeDiameterText'),
+      cdText: document.getElementById('cdText'),
+      qmaxText: document.getElementById('qmaxText'),
+      targetText: document.getElementById('targetText'),
+      toleranceText: document.getElementById('toleranceText'),
+      feedbackBox: document.getElementById('feedbackBox'),
+      resultTitle: document.getElementById('resultTitle'),
+      fbTarget: document.getElementById('fbTarget'),
+      fbEquilibrium: document.getElementById('fbEquilibrium'),
+      fbError: document.getElementById('fbError'),
+      fbQin: document.getElementById('fbQin'),
+      fbQout: document.getElementById('fbQout'),
+      fbMessage: document.getElementById('fbMessage')
+    };
+
+    let state;
+    let round;
+    let selectedPct;
+    let waterHeight;
+    let simTime;
+    let qInSelected;
+    let stableHold;
+    let overflowHold;
+    let resultLineHeight = null;
+    let lastTimestamp = performance.now();
+    let soundOn = true;
+    let audioCtx = null;
+    let knobDragging = false;
+    let lampState = 'neutral';
+
+    function rand(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function areaCircle(diameter) {
+      const r = diameter / 2;
+      return Math.PI * r * r;
+    }
+
+    function fmt(value, digits = 2) {
+      return Number(value).toFixed(digits);
+    }
+
+    function fmtLps(q) {
+      return `${fmt(q * LPS, 1)} L/s`;
+    }
+
+    function pctToAngle(pct) {
+      return -135 + (pct / 100) * 270;
+    }
+
+    function angleToPct(angle) {
+      return ((angle + 135) / 270) * 100;
+    }
+
+    function setSelectedPct(value, playTone = false) {
+      if (state !== 'aim') return;
+      const next = clamp(Math.round(value * 10) / 10, 0, 100);
+      if (next === selectedPct) return;
+      selectedPct = next;
+      updateControls();
+      if (playTone) playClick(210, 0.035, 0.015);
+    }
+
+    function updateKnobVisual() {
+      const angle = pctToAngle(selectedPct);
+      els.flowKnob.style.setProperty('--angle', `${angle}deg`);
+      els.flowKnob.setAttribute('aria-valuenow', fmt(selectedPct, 1));
+      els.flowKnob.setAttribute('aria-valuetext', `${fmt(selectedPct, 1)} por ciento`);
+    }
+
+    function pointerToKnobPct(clientX, clientY) {
+      const rect = els.flowKnob.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const dx = clientX - cx;
+      const dy = clientY - cy;
+      let angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+      if (angle > 180) angle -= 360;
+      if (angle < -180) angle += 360;
+      angle = clamp(angle, -135, 135);
+      return angleToPct(angle);
+    }
+
+    function beginKnobDrag(ev) {
+      if (state !== 'aim') return;
+      knobDragging = true;
+      els.flowKnob.classList.add('dragging');
+      const point = ev.touches ? ev.touches[0] : ev;
+      setSelectedPct(pointerToKnobPct(point.clientX, point.clientY), false);
+      if (ev.preventDefault) ev.preventDefault();
+    }
+
+    function moveKnobDrag(ev) {
+      if (!knobDragging || state !== 'aim') return;
+      const point = ev.touches ? ev.touches[0] : ev;
+      setSelectedPct(pointerToKnobPct(point.clientX, point.clientY), false);
+      if (ev.preventDefault) ev.preventDefault();
+    }
+
+    function endKnobDrag() {
+      if (!knobDragging) return;
+      knobDragging = false;
+      els.flowKnob.classList.remove('dragging');
+      playClick(210, 0.035, 0.015);
+    }
+
+    function makeRound() {
+      // Se generan rondas por solución oculta: primero se calcula el caudal que
+      // estabiliza en la altura objetivo y después se elige un Qmax compatible.
+      for (let i = 0; i < 2000; i++) {
+        const tankHeight = rand(1.55, 2.55);          // m
+        const tankDiameter = rand(0.26, 0.44);       // m
+        const holeHeight = rand(0.14, Math.min(0.32, tankHeight * 0.18));
+        const holeDiameter = rand(0.038, 0.068);     // m
+        const cd = rand(0.60, 0.66);
+        const minTarget = holeHeight + rand(0.42, 0.55);
+        const maxTarget = tankHeight * rand(0.74, 0.84);
+        if (minTarget >= maxTarget) continue;
+
+        const targetHeight = rand(minTarget, maxTarget);
+        const correctPct = rand(0.42, 0.80);
+        const holeArea = areaCircle(holeDiameter);
+        const neededQ = cd * holeArea * Math.sqrt(2 * G * (targetHeight - holeHeight));
+        const qMax = neededQ / correctPct;
+
+        // Rango pensado para que la animación en tiempo físico sea jugable.
+        if (qMax >= 0.008 && qMax <= 0.045) {
+          const tolerance = Math.max(0.035, tankHeight * 0.018);
+          return {
+            tankHeight,
+            tankDiameter,
+            tankArea: areaCircle(tankDiameter),
+            holeHeight,
+            holeDiameter,
+            holeArea,
+            cd,
+            targetHeight,
+            qMax,
+            neededQ,
+            correctPct: correctPct * 100,
+            tolerance
+          };
+        }
+      }
+
+      // Fallback poco probable.
+      const tankHeight = 2.1;
+      const tankDiameter = 0.34;
+      const holeHeight = 0.22;
+      const holeDiameter = 0.052;
+      const cd = 0.62;
+      const targetHeight = 1.45;
+      const holeArea = areaCircle(holeDiameter);
+      const neededQ = cd * holeArea * Math.sqrt(2 * G * (targetHeight - holeHeight));
+      return {
+        tankHeight,
+        tankDiameter,
+        tankArea: areaCircle(tankDiameter),
+        holeHeight,
+        holeDiameter,
+        holeArea,
+        cd,
+        targetHeight,
+        qMax: neededQ / 0.62,
+        neededQ,
+        correctPct: 62,
+        tolerance: 0.04
+      };
+    }
+
+    function qOutForHeight(h) {
+      if (h <= round.holeHeight) return 0;
+      return round.cd * round.holeArea * Math.sqrt(2 * G * (h - round.holeHeight));
+    }
+
+    function jetSpeedForHeight(h) {
+      if (h <= round.holeHeight) return 0;
+      // Para la trayectoria visual se usa la velocidad horizontal ideal del chorro.
+      // El coeficiente de descarga afecta el caudal volumétrico, no se fuerza como
+      // reducción directa de la trayectoria para no ocultar el fenómeno de Torricelli.
+      return Math.sqrt(2 * G * (h - round.holeHeight));
+    }
+
+    function equilibriumHeightForQ(qIn) {
+      if (qIn <= 0) return 0;
+      const head = Math.pow(qIn / (round.cd * round.holeArea), 2) / (2 * G);
+      return round.holeHeight + head;
+    }
+
+    function resetRound() {
+      round = makeRound();
+      selectedPct = 50.0;
+      waterHeight = 0;
+      simTime = 0;
+      qInSelected = 0;
+      stableHold = 0;
+      overflowHold = 0;
+      resultLineHeight = null;
+      state = 'aim';
+      lampState = 'neutral';
+      document.body.classList.remove('state-win', 'state-fail');
+      lastTimestamp = performance.now();
+
+      els.feedbackBox.className = 'feedback';
+      els.feedbackBox.style.display = 'none';
+      els.openBtn.style.display = 'block';
+      els.continueBtn.style.display = 'none';
+
+      updateDataPanel();
+      updateControls();
+      setStatus('<strong>Ronda lista.</strong><br>Calcula el porcentaje del caudal máximo. Usa 1% para ajuste grueso y 0.1% para ajuste fino. Cuando abras la válvula, el control quedará bloqueado.');
+    }
+
+    function setStatus(html) {
+      els.statusText.innerHTML = html;
+    }
+
+    function updateDataPanel() {
+      els.tankHeightText.textContent = `${fmt(round.tankHeight, 2)} m`;
+      els.tankDiameterText.textContent = `${fmt(round.tankDiameter, 2)} m`;
+      els.holeHeightText.textContent = `${fmt(round.holeHeight, 2)} m`;
+      els.holeDiameterText.textContent = `${fmt(round.holeDiameter * 100, 1)} cm`;
+      els.cdText.textContent = fmt(round.cd, 2);
+      els.qmaxText.textContent = fmtLps(round.qMax);
+      els.targetText.textContent = `${fmt(round.targetHeight, 2)} m`;
+      els.toleranceText.textContent = `±${fmt(round.tolerance * 100, 0)} cm`;
+    }
+
+    function updateControls() {
+      els.pctText.textContent = fmt(selectedPct, 1);
+      updateKnobVisual();
+      const locked = state !== 'aim';
+      els.minusCoarse.disabled = locked;
+      els.plusCoarse.disabled = locked;
+      els.minusFine.disabled = locked;
+      els.plusFine.disabled = locked;
+      els.openBtn.disabled = locked;
+      els.flowKnob.classList.toggle('locked', locked);
+      els.flowKnob.setAttribute('aria-disabled', locked ? 'true' : 'false');
+
+      if (state === 'aim') {
+        els.controlNote.textContent = 'Gira la perilla o usa el teclado antes de abrir la válvula.';
+      } else if (state === 'running') {
+        els.controlNote.textContent = 'Válvula abierta. El caudal ya no puede modificarse.';
+      } else {
+        els.controlNote.textContent = 'Ronda terminada. Revisa la retroalimentación.';
+      }
+    }
+
+    function updateHud() {
+      const qOut = qOutForHeight(waterHeight);
+      els.timeHud.textContent = `${fmt(simTime, 1)} s`;
+      els.heightHud.textContent = `${fmt(waterHeight, 2)} m`;
+      els.qinHud.textContent = state === 'aim' ? '—' : fmtLps(qInSelected);
+      els.qoutHud.textContent = state === 'aim' ? '—' : fmtLps(qOut);
+    }
+
+    function adjustPct(delta) {
+      if (state !== 'aim') return;
+      setSelectedPct(selectedPct + delta, true);
+    }
+
+    function openValve() {
+      if (state !== 'aim') return;
+      qInSelected = (selectedPct / 100) * round.qMax;
+      state = 'running';
+      stableHold = 0;
+      overflowHold = 0;
+      simTime = 0;
+      lastTimestamp = performance.now();
+      updateControls();
+      setStatus(`<strong>Válvula abierta.</strong><br>Caudal bloqueado en ${fmt(selectedPct, 1)}%. Observa si el nivel se estabiliza en la línea objetivo.`);
+      playClick(360, 0.12, 0.035);
+    }
+
+    function finishRound(reason) {
+      if (state !== 'running') return;
+      state = 'done';
+      updateControls();
+      els.openBtn.style.display = 'none';
+      els.continueBtn.style.display = 'block';
+
+      const eqRaw = equilibriumHeightForQ(qInSelected);
+      const overflow = reason === 'overflow' || eqRaw > round.tankHeight;
+      const equilibrium = overflow ? round.tankHeight : eqRaw;
+      resultLineHeight = equilibrium;
+      const error = Math.abs(equilibrium - round.targetHeight);
+      const qOutFinal = overflow ? qOutForHeight(round.tankHeight) : qInSelected;
+
+      els.fbTarget.textContent = `${fmt(round.targetHeight, 2)} m`;
+      els.fbEquilibrium.textContent = overflow ? `Desborda (${fmt(round.tankHeight, 2)} m)` : `${fmt(equilibrium, 2)} m`;
+      els.fbError.textContent = overflow ? '—' : `${fmt(error, 3)} m`;
+      els.fbQin.textContent = fmtLps(qInSelected);
+      els.fbQout.textContent = fmtLps(qOutFinal);
+
+      let cls = 'fail';
+      let title = 'Fallo';
+      let message = '';
+      lampState = 'fail';
+      document.body.classList.remove('state-win', 'state-fail');
+
+      if (overflow) {
+        title = 'Desbordamiento';
+        message = 'El caudal elegido supera la capacidad de salida aun con el tanque lleno. El nivel no puede estabilizarse dentro del tanque.';
+        playClick(120, 0.22, 0.045);
+      } else if (error <= round.tolerance) {
+        cls = 'win';
+        title = 'Acierto';
+        lampState = 'win';
+        message = 'El caudal de entrada elegido iguala al caudal de salida cerca de la altura solicitada. El nivel quedó estabilizado dentro de la zona segura.';
+        playClick(640, 0.16, 0.035);
+        setTimeout(() => playClick(820, 0.16, 0.03), 130);
+      } else if (error <= round.tolerance * 2.1) {
+        cls = 'near';
+        title = 'Muy cerca';
+        message = equilibrium < round.targetHeight
+          ? 'El caudal fue ligeramente bajo. El chorro se estabilizó antes de alcanzar la altura solicitada.'
+          : 'El caudal fue ligeramente alto. El nivel se estabilizó por encima de la altura solicitada.';
+        playClick(390, 0.18, 0.035);
+      } else {
+        title = equilibrium < round.targetHeight ? 'Caudal insuficiente' : 'Caudal excesivo';
+        message = equilibrium < round.targetHeight
+          ? 'El caudal de entrada no alcanza para sostener el nivel solicitado. La salida igualó a la entrada a una altura menor.'
+          : 'El caudal de entrada fue mayor al necesario. La salida igualó a la entrada a una altura superior a la solicitada.';
+        playClick(150, 0.2, 0.045);
+      }
+
+      document.body.classList.add(lampState === 'win' ? 'state-win' : 'state-fail');
+
+      els.resultTitle.textContent = title;
+      els.fbMessage.textContent = message;
+      els.feedbackBox.style.display = 'block';
+      els.feedbackBox.className = `feedback show ${cls}`;
+      setStatus(`<strong>${title}.</strong><br>${message}`);
+    }
+
+    function updatePhysics(dt) {
+      if (state !== 'running') return;
+      const maxStep = 0.01;
+      let remaining = Math.min(dt, 0.12);
+
+      while (remaining > 0) {
+        const step = Math.min(maxStep, remaining);
+        const qOut = qOutForHeight(waterHeight);
+        const dhdt = (qInSelected - qOut) / round.tankArea;
+        waterHeight += dhdt * step;
+        waterHeight = clamp(waterHeight, 0, round.tankHeight);
+
+        const qOutAtTop = qOutForHeight(round.tankHeight);
+        if (waterHeight >= round.tankHeight - 0.0001 && qInSelected > qOutAtTop) {
+          overflowHold += step;
+        } else {
+          overflowHold = 0;
+        }
+
+        remaining -= step;
+      }
+
+      simTime += dt;
+
+      if (overflowHold > 0.65) {
+        finishRound('overflow');
+        return;
+      }
+
+      const eq = equilibriumHeightForQ(qInSelected);
+      const qOut = qOutForHeight(waterHeight);
+      const dhdtNow = (qInSelected - qOut) / round.tankArea;
+
+      if (eq <= round.tankHeight) {
+        const nearEquilibrium = Math.abs(waterHeight - eq) < Math.max(0.012, round.tankHeight * 0.006);
+        const slow = Math.abs(dhdtNow) < 0.003;
+        if (simTime > 3 && nearEquilibrium && slow) {
+          stableHold += dt;
+        } else {
+          stableHold = 0;
+        }
+
+        if (stableHold > 1.1) {
+          waterHeight = eq;
+          finishRound('stable');
+          return;
+        }
+      }
+
+      // Evita rondas eternas si por valores extremos la aproximación se vuelve muy lenta.
+      // No acelera la animación: solo evalúa el equilibrio físico cuando ya pasó suficiente tiempo real.
+      if (simTime > 75 && eq <= round.tankHeight) {
+        waterHeight = eq;
+        finishRound('stable');
+      }
+    }
+
+    function getScene() {
+      const w = canvas.width;
+      const h = canvas.height;
+      const topMargin = 76;
+      const bottomMargin = 116; // reserva visual para el HUD inferior
+      const usableH = h - topMargin - bottomMargin;
+      const scale = Math.min(usableH / round.tankHeight, 230);
+      const tankPixH = round.tankHeight * scale;
+      const tankPixW = clamp(round.tankDiameter * scale, 82, 170);
+      const tankX = w * 0.50;
+
+      // Centrado vertical del tanque dentro del espacio útil del diagrama.
+      const tankCenterY = topMargin + usableH / 2;
+      const tankTopY = tankCenterY - tankPixH / 2;
+      const floorY = tankTopY + tankPixH;
+
+      const tankLeft = tankX - tankPixW / 2;
+      const tankRight = tankX + tankPixW / 2;
+      return { w, h, floorY, topMargin, scale, tankPixH, tankPixW, tankX, tankTopY, tankLeft, tankRight };
+    }
+
+    function drawRoundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    function drawBackground(scene) {
+      const wall = ctx.createLinearGradient(0, 0, 0, scene.h);
+      wall.addColorStop(0, '#58646d');
+      wall.addColorStop(0.52, '#46515a');
+      wall.addColorStop(1, '#313a40');
+      ctx.fillStyle = wall;
+      ctx.fillRect(0, 0, scene.w, scene.h);
+
+      // Paneles metálicos discretos.
+      for (let i = 0; i < 6; i++) {
+        const y = 38 + i * 66;
+        ctx.strokeStyle = 'rgba(222, 234, 240, 0.07)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(scene.w, y);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 8; i++) {
+        const x = 60 + i * 100;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, scene.floorY);
+        ctx.stroke();
+      }
+
+      // Piso industrial.
+      ctx.fillStyle = '#2d353b';
+      ctx.fillRect(0, scene.floorY, scene.w, scene.h - scene.floorY);
+      ctx.fillStyle = '#3a4349';
+      ctx.fillRect(0, scene.floorY - 18, scene.w, 18);
+      ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < scene.w; x += 24) {
+        ctx.beginPath();
+        ctx.moveTo(x, scene.floorY - 18);
+        ctx.lineTo(x + 12, scene.floorY);
+        ctx.stroke();
+      }
+
+      // Franja de seguridad.
+      const stripeY = scene.floorY - 18;
+      for (let x = 0; x < scene.w; x += 34) {
+        ctx.fillStyle = x % 68 === 0 ? '#e1b020' : '#2f383f';
+        ctx.beginPath();
+        ctx.moveTo(x, stripeY);
+        ctx.lineTo(x + 20, stripeY);
+        ctx.lineTo(x + 34, scene.floorY);
+        ctx.lineTo(x + 14, scene.floorY);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Regla vertical en metros.
+      const rulerX = scene.tankLeft - 52;
+      ctx.strokeStyle = 'rgba(238, 246, 250, 0.55)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(rulerX, scene.tankTopY);
+      ctx.lineTo(rulerX, scene.floorY);
+      ctx.stroke();
+
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(238, 246, 250, 0.78)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      const maxTick = Math.floor(round.tankHeight * 10) / 10;
+      for (let m = 0; m <= maxTick + 0.001; m += 0.25) {
+        const y = scene.floorY - m * scene.scale;
+        const major = Math.abs((m * 100) % 50) < 0.001;
+        ctx.strokeStyle = major ? 'rgba(238,246,250,0.55)' : 'rgba(238,246,250,0.25)';
+        ctx.lineWidth = major ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(rulerX - (major ? 10 : 6), y);
+        ctx.lineTo(rulerX + 8, y);
+        ctx.stroke();
+        if (major) ctx.fillText(`${m.toFixed(1)} m`, rulerX - 14, y);
+      }
+    }
+
+    function drawTarget(scene) {
+      const y = scene.floorY - round.targetHeight * scene.scale;
+      ctx.save();
+      ctx.setLineDash([8, 8]);
+      ctx.strokeStyle = '#d98518';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(scene.tankLeft - 34, y);
+      ctx.lineTo(scene.tankRight + 260, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      drawRoundedRect(scene.tankRight + 32, y - 18, 190, 36, 12);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(217,133,24,0.35)';
+      ctx.stroke();
+      ctx.fillStyle = '#a45e07';
+      ctx.font = '800 14px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`Objetivo: ${fmt(round.targetHeight, 2)} m`, scene.tankRight + 46, y);
+      ctx.restore();
+    }
+
+    function drawEquilibriumLine(scene) {
+      if (resultLineHeight == null || resultLineHeight < 0 || resultLineHeight > round.tankHeight) return;
+      const y = scene.floorY - resultLineHeight * scene.scale;
+      ctx.save();
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = '#7046b8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(scene.tankLeft - 16, y);
+      ctx.lineTo(scene.tankRight + 230, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(255,255,255,0.88)';
+      drawRoundedRect(scene.tankRight + 32, y + 12, 190, 32, 11);
+      ctx.fill();
+      ctx.fillStyle = '#58339a';
+      ctx.font = '800 13px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      const label = resultLineHeight >= round.tankHeight - 0.001 ? 'Límite del tanque' : `Equilibrio: ${fmt(resultLineHeight, 2)} m`;
+      ctx.fillText(label, scene.tankRight + 46, y + 28);
+      ctx.restore();
+    }
+
+    function drawTank(scene) {
+      const waterY = scene.floorY - waterHeight * scene.scale;
+      const topEllipseH = 22;
+      const bottomEllipseH = 22;
+
+      // Soporte industrial discreto.
+      ctx.fillStyle = '#76848e';
+      ctx.fillRect(scene.tankLeft - 16, scene.tankTopY - 8, 10, scene.tankPixH + 22);
+      ctx.fillRect(scene.tankRight + 6, scene.tankTopY - 8, 10, scene.tankPixH + 22);
+      ctx.fillRect(scene.tankLeft - 30, scene.floorY + 6, scene.tankPixW + 60, 10);
+      for (const bx of [scene.tankLeft - 12, scene.tankRight + 10]) {
+        for (let i = 0; i < 5; i++) {
+          ctx.fillStyle = '#d6dde2';
+          ctx.beginPath();
+          ctx.arc(bx + 5, scene.tankTopY + 30 + i * ((scene.tankPixH - 40) / 4), 2.1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Sombra.
+      ctx.fillStyle = 'rgba(20,55,80,0.12)';
+      ctx.beginPath();
+      ctx.ellipse(scene.tankX + 8, scene.floorY + 13, scene.tankPixW * 0.63, 18, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Agua, recortada al interior del tanque.
+      ctx.save();
+      drawRoundedRect(scene.tankLeft, scene.tankTopY, scene.tankPixW, scene.tankPixH, 18);
+      ctx.clip();
+      if (waterHeight > 0) {
+        const grad = ctx.createLinearGradient(0, waterY, 0, scene.floorY);
+        grad.addColorStop(0, 'rgba(63, 184, 224, 0.65)');
+        grad.addColorStop(1, 'rgba(28, 138, 196, 0.78)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(scene.tankLeft, waterY, scene.tankPixW, scene.floorY - waterY);
+        ctx.fillStyle = 'rgba(192, 244, 255, 0.72)';
+        ctx.beginPath();
+        ctx.ellipse(scene.tankX, waterY, scene.tankPixW / 2, topEllipseH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+
+      // Cristal del tanque.
+      const bodyGrad = ctx.createLinearGradient(scene.tankLeft, 0, scene.tankRight, 0);
+      bodyGrad.addColorStop(0, 'rgba(255,255,255,0.42)');
+      bodyGrad.addColorStop(0.48, 'rgba(255,255,255,0.12)');
+      bodyGrad.addColorStop(1, 'rgba(255,255,255,0.36)');
+      ctx.fillStyle = bodyGrad;
+      drawRoundedRect(scene.tankLeft, scene.tankTopY, scene.tankPixW, scene.tankPixH, 18);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(17, 67, 96, 0.62)';
+      ctx.lineWidth = 3;
+      drawRoundedRect(scene.tankLeft, scene.tankTopY, scene.tankPixW, scene.tankPixH, 18);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(17, 67, 96, 0.38)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(scene.tankX, scene.tankTopY, scene.tankPixW / 2, topEllipseH / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.ellipse(scene.tankX, scene.floorY, scene.tankPixW / 2, bottomEllipseH / 2, 0, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Brillo vertical.
+      ctx.strokeStyle = 'rgba(255,255,255,0.62)';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(scene.tankLeft + scene.tankPixW * 0.22, scene.tankTopY + 20);
+      ctx.lineTo(scene.tankLeft + scene.tankPixW * 0.22, scene.floorY - 20);
+      ctx.stroke();
+
+      drawHole(scene);
+    }
+
+    function drawHole(scene) {
+      const holeY = scene.floorY - round.holeHeight * scene.scale;
+      const radius = clamp((round.holeDiameter * scene.scale) / 2, 5, 12);
+      const x = scene.tankRight;
+
+      ctx.fillStyle = '#173247';
+      ctx.beginPath();
+      ctx.arc(x, holeY, radius + 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#0e1d2a';
+      ctx.beginPath();
+      ctx.arc(x + 1, holeY, radius, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, holeY, radius + 3, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    function drawInflow(scene) {
+      const nozzleY = scene.tankTopY - 12;
+      const nozzleW = 28;
+      const nozzleH = 24;
+      const pipeW = 12;
+
+      // Cabezal compacto de entrada integrado al tanque.
+      ctx.fillStyle = '#6f7c85';
+      drawRoundedRect(scene.tankX - nozzleW / 2, nozzleY - nozzleH, nozzleW, nozzleH, 8);
+      ctx.fill();
+      ctx.strokeStyle = '#d6e1e7';
+      ctx.lineWidth = 2;
+      drawRoundedRect(scene.tankX - nozzleW / 2, nozzleY - nozzleH, nozzleW, nozzleH, 8);
+      ctx.stroke();
+
+      ctx.fillStyle = '#4b565e';
+      ctx.fillRect(scene.tankX - pipeW / 2, nozzleY - 6, pipeW, 16);
+      ctx.strokeStyle = '#d6e1e7';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(scene.tankX - pipeW / 2, nozzleY - 6, pipeW, 16);
+
+      if (state === 'running' || state === 'done') {
+        const qLps = qInSelected * LPS;
+        const streamW = clamp(4 + Math.sqrt(qLps) * 2.0, 6, 20);
+        const waterY = scene.floorY - waterHeight * scene.scale;
+        const impactY = waterHeight > 0.02 ? waterY : (scene.floorY - 8);
+
+        // Flujo continuo desde la boquilla hasta la superficie del agua
+        // (o hasta el fondo si el tanque aún está vacío).
+        ctx.strokeStyle = 'rgba(35, 163, 215, 0.78)';
+        ctx.lineWidth = streamW;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(scene.tankX, nozzleY + 3);
+        ctx.lineTo(scene.tankX, impactY);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(214, 250, 255, 0.78)';
+        ctx.lineWidth = Math.max(2, streamW * 0.32);
+        ctx.beginPath();
+        ctx.moveTo(scene.tankX - streamW * 0.16, nozzleY + 5);
+        ctx.lineTo(scene.tankX - streamW * 0.16, impactY - 2);
+        ctx.stroke();
+        ctx.lineCap = 'butt';
+
+        // Efecto de impacto para reforzar continuidad visual con el agua almacenada.
+        if (waterHeight > 0.02) {
+          const splashW = clamp(12 + streamW * 0.9, 14, 28);
+          ctx.fillStyle = 'rgba(217, 250, 255, 0.60)';
+          ctx.beginPath();
+          ctx.ellipse(scene.tankX, waterY - 1, splashW, 3.2, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.strokeStyle = 'rgba(224, 252, 255, 0.65)';
+          ctx.lineWidth = 1.6;
+          ctx.beginPath();
+          ctx.moveTo(scene.tankX - splashW * 0.55, waterY - 2);
+          ctx.quadraticCurveTo(scene.tankX, waterY - 10 - streamW * 0.25, scene.tankX + splashW * 0.55, waterY - 2);
+          ctx.stroke();
+        } else {
+          // Cuando el tanque está vacío, se sugiere impacto en el fondo interno.
+          ctx.fillStyle = 'rgba(217, 250, 255, 0.38)';
+          ctx.beginPath();
+          ctx.ellipse(scene.tankX, scene.floorY - 7, 12 + streamW * 0.4, 2.8, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawJet(scene) {
+      if (waterHeight <= round.holeHeight || (state === 'aim' && simTime === 0)) return;
+
+      const holeX = scene.tankRight + 3;
+      const holeY = scene.floorY - round.holeHeight * scene.scale;
+      const v = jetSpeedForHeight(waterHeight);
+      const qOut = qOutForHeight(waterHeight);
+      if (v <= 0 || qOut <= 0) return;
+
+      const tFall = Math.sqrt((2 * round.holeHeight) / G);
+      const visualEndT = Math.min(tFall, 1.05);
+      const points = [];
+      const n = 42;
+      for (let i = 0; i <= n; i++) {
+        const t = (visualEndT * i) / n;
+        const x = holeX + v * t * scene.scale;
+        const y = holeY + 0.5 * G * t * t * scene.scale;
+        points.push({ x, y, t });
+      }
+
+      const thickness = clamp(round.holeDiameter * scene.scale * 0.75, 4, 13);
+      const qLps = qOut * LPS;
+
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(21, 145, 205, 0.72)';
+      ctx.lineWidth = thickness;
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(216, 250, 255, 0.72)';
+      ctx.lineWidth = Math.max(1.5, thickness * 0.35);
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i++) {
+        const p = points[i];
+        if (i === 0) ctx.moveTo(p.x, p.y - thickness * 0.16);
+        else ctx.lineTo(p.x, p.y - thickness * 0.16);
+      }
+      ctx.stroke();
+
+      // Gotas: cantidad y separación relacionadas con caudal de salida.
+      const drops = Math.round(clamp(8 + qLps * 0.8, 8, 28));
+      ctx.fillStyle = 'rgba(27, 147, 207, 0.78)';
+      for (let i = 0; i < drops; i++) {
+        const phase = ((simTime * (1.5 + v * 0.18)) + i / drops) % 1;
+        const idx = Math.floor(phase * (points.length - 1));
+        const p = points[idx];
+        if (!p) continue;
+        const wiggle = Math.sin((simTime + i) * 6.1) * thickness * 0.25;
+        const r = clamp(thickness * rand(0.13, 0.22), 1.4, 3.2);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y + wiggle, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Charco donde golpea el suelo.
+      const last = points[points.length - 1];
+      if (last && last.y >= scene.floorY - 8) {
+        const puddleW = clamp(18 + qLps * 1.8, 22, 72);
+        ctx.fillStyle = 'rgba(34, 143, 198, 0.26)';
+        ctx.beginPath();
+        ctx.ellipse(last.x, scene.floorY + 5, puddleW, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawSignalLamp(scene) {
+      const x = scene.w * 0.89;
+      const y = 148;
+      const housingW = 62;
+      const housingH = 130;
+      const lensR = 23;
+      const beamColor = lampState === 'win'
+        ? 'rgba(86, 255, 152, 0.28)'
+        : lampState === 'fail'
+          ? 'rgba(255, 88, 88, 0.28)'
+          : 'rgba(255, 213, 95, 0.20)';
+      const lensColor = lampState === 'win'
+        ? '#58ef9b'
+        : lampState === 'fail'
+          ? '#ff6666'
+          : '#f1c84f';
+      const glowColor = lampState === 'win'
+        ? 'rgba(88, 239, 155, 0.65)'
+        : lampState === 'fail'
+          ? 'rgba(255, 102, 102, 0.60)'
+          : 'rgba(241, 200, 79, 0.42)';
+
+      if (lampState !== 'neutral') {
+        const beam = ctx.createRadialGradient(x, y + 10, 12, x, y + 10, 170);
+        beam.addColorStop(0, beamColor);
+        beam.addColorStop(0.45, lampState === 'win' ? 'rgba(86,255,152,0.10)' : 'rgba(255,88,88,0.10)');
+        beam.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.ellipse(x, y + 14, 180, 140, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = '#6f7d86';
+      ctx.fillRect(x - 5, y + 40, 10, 92);
+      ctx.fillStyle = '#4c5860';
+      ctx.fillRect(x - 24, y + 130, 48, 12);
+
+      ctx.fillStyle = '#374047';
+      drawRoundedRect(x - housingW / 2, y - housingH / 2, housingW, housingH, 16);
+      ctx.fill();
+      ctx.strokeStyle = '#8e9ba4';
+      ctx.lineWidth = 3;
+      drawRoundedRect(x - housingW / 2, y - housingH / 2, housingW, housingH, 16);
+      ctx.stroke();
+
+      ctx.fillStyle = '#dbe2e6';
+      for (const [bx, by] of [[x-20,y-50],[x+20,y-50],[x-20,y+50],[x+20,y+50]]) {
+        ctx.beginPath(); ctx.arc(bx, by, 2.4, 0, Math.PI*2); ctx.fill();
+      }
+
+      ctx.fillStyle = '#1f272d';
+      ctx.beginPath();
+      ctx.arc(x, y, lensR + 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      const lens = ctx.createRadialGradient(x - 7, y - 8, 4, x, y, lensR + 8);
+      lens.addColorStop(0, '#ffffff');
+      lens.addColorStop(0.15, lampState === 'neutral' ? '#fff3c6' : lensColor);
+      lens.addColorStop(0.65, lampState === 'neutral' ? '#f1c84f' : lensColor);
+      lens.addColorStop(1, lampState === 'neutral' ? '#806321' : (lampState === 'win' ? '#167c4b' : '#8c2626'));
+      ctx.fillStyle = lens;
+      ctx.beginPath();
+      ctx.arc(x, y, lensR, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.shadowBlur = lampState === 'neutral' ? 10 : 24;
+      ctx.shadowColor = glowColor;
+      ctx.strokeStyle = glowColor;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, lensR + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      ctx.fillStyle = 'rgba(255,255,255,0.92)';
+      drawRoundedRect(x - 54, y + 74, 108, 28, 10);
+      ctx.fill();
+      ctx.fillStyle = '#1b3440';
+      ctx.font = '800 12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = lampState === 'win' ? 'ACIERTO' : lampState === 'fail' ? 'FALLO' : 'EN ESPERA';
+      ctx.fillText(label, x, y + 88);
+    }
+
+    function drawLabels(scene) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.90)';
+      drawRoundedRect(24, 16, 286, 78, 16);
+      ctx.fill();
+      ctx.fillStyle = '#123149';
+      ctx.font = '900 16px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('Módulo de proceso', 42, 28);
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.fillStyle = '#607789';
+      const lines = state === 'aim'
+        ? ['Línea detenida.', 'Tanque aún vacío.']
+        : ['Entrada y descarga', 'compiten en tiempo real.'];
+      ctx.fillText(lines[0], 42, 52);
+      ctx.fillText(lines[1], 42, 69);
+      ctx.restore();
+    }
+
+    function drawOverflow(scene) {
+      if (!(state === 'running' || state === 'done')) return;
+      if (waterHeight < round.tankHeight - 0.001) return;
+      if (qInSelected <= qOutForHeight(round.tankHeight)) return;
+
+      ctx.save();
+      ctx.strokeStyle = 'rgba(34, 143, 198, 0.62)';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      const y = scene.tankTopY + 2;
+      for (let i = 0; i < 6; i++) {
+        const x = scene.tankLeft + 16 + i * (scene.tankPixW - 32) / 5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.bezierCurveTo(x + 8, y + 18, x - 12, y + 30, x + 4, y + 50);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function draw() {
+      const scene = getScene();
+      drawBackground(scene);
+      drawTarget(scene);
+      drawEquilibriumLine(scene);
+      drawJet(scene);
+      drawInflow(scene);
+      drawTank(scene);
+      drawOverflow(scene);
+      drawSignalLamp(scene);
+      drawLabels(scene);
+    }
+
+    function loop(timestamp) {
+      const dt = Math.max(0, (timestamp - lastTimestamp) / 1000);
+      lastTimestamp = timestamp;
+      updatePhysics(dt);
+      updateHud();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function ensureAudio() {
+      if (!soundOn) return null;
+      if (!audioCtx) {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return null;
+        audioCtx = new AudioContext();
+      }
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playClick(freq = 300, duration = 0.08, gainValue = 0.025) {
+      if (!soundOn) return;
+      const ac = ensureAudio();
+      if (!ac) return;
+      const osc = ac.createOscillator();
+      const gain = ac.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, ac.currentTime);
+      gain.gain.exponentialRampToValueAtTime(gainValue, ac.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + duration);
+      osc.connect(gain).connect(ac.destination);
+      osc.start(ac.currentTime);
+      osc.stop(ac.currentTime + duration + 0.02);
+    }
+
+    els.flowKnob.addEventListener('mousedown', beginKnobDrag);
+    els.flowKnob.addEventListener('touchstart', beginKnobDrag, { passive: false });
+    window.addEventListener('mousemove', moveKnobDrag, { passive: false });
+    window.addEventListener('touchmove', moveKnobDrag, { passive: false });
+    window.addEventListener('mouseup', endKnobDrag);
+    window.addEventListener('touchend', endKnobDrag);
+    els.flowKnob.addEventListener('wheel', (ev) => {
+      if (state !== 'aim') return;
+      ev.preventDefault();
+      adjustPct(ev.deltaY > 0 ? -0.1 : 0.1);
+    }, { passive: false });
+
+    els.minusCoarse.addEventListener('click', () => adjustPct(-1));
+    els.plusCoarse.addEventListener('click', () => adjustPct(1));
+    els.minusFine.addEventListener('click', () => adjustPct(-0.1));
+    els.plusFine.addEventListener('click', () => adjustPct(0.1));
+    els.openBtn.addEventListener('click', openValve);
+    els.continueBtn.addEventListener('click', resetRound);
+    els.soundBtn.addEventListener('click', () => {
+      soundOn = !soundOn;
+      els.soundBtn.textContent = soundOn ? 'Sonido: activado' : 'Sonido: desactivado';
+      if (soundOn) playClick(520, 0.08, 0.025);
+    });
+
+    window.addEventListener('keydown', (ev) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter', ' '].includes(ev.key)) {
+        ev.preventDefault();
+      }
+      if (ev.key === 'ArrowLeft') adjustPct(-1);
+      if (ev.key === 'ArrowRight') adjustPct(1);
+      if (ev.key === 'ArrowDown') adjustPct(-0.1);
+      if (ev.key === 'ArrowUp') adjustPct(0.1);
+      if ((ev.key === 'Enter' || ev.key === ' ') && state === 'aim') openValve();
+      if ((ev.key === 'Enter' || ev.key === ' ') && state === 'done') resetRound();
+    });
+
+    resetRound();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
